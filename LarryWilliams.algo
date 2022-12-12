@@ -12,7 +12,7 @@ namespace cAlgo.Robots
     [Robot(AccessRights = AccessRights.None)]
     public class AMFiboRSI : Robot
     {
-        [Parameter(DefaultValue = "LC17 - Fibo RSI - Started")]
+        [Parameter(DefaultValue = "Larry R Williams - Started")]
         public string Message { get; set; }
         
         [Parameter("Initial Quantity (Lots)", Group = "Bot configuration", DefaultValue = 0.01, MinValue = 0.01, Step = 0.01)]
