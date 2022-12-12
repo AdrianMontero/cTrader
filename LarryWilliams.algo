@@ -1,0 +1,143 @@
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+using cAlgo.API;
+using cAlgo.API.Collections;
+using cAlgo.API.Indicators;
+using cAlgo.API.Internals;
+
+namespace cAlgo.Robots
+{
+    [Robot(AccessRights = AccessRights.None)]
+    public class AMFiboRSI : Robot
+    {
+        [Parameter(DefaultValue = "LC17 - Fibo RSI - Started")]
+        public string Message { get; set; }
+        
+        [Parameter("Initial Quantity (Lots)", Group = "Bot configuration", DefaultValue = 0.01, MinValue = 0.01, Step = 0.01)]
+        public double InitialQuantity { get; set; }
+        
+        public MovingAverage low_ma;
+        public MovingAverage hight_ma;
+        public int tendencia; 
+        
+        private double[] _arrayLow = new double[3];
+        private double[] _arrayHight = new double[3];
+
+        protected override void OnStart()
+        {
+            Print(Message);
+            low_ma = Indicators.SimpleMovingAverage(Bars.LowPrices,3);
+            hight_ma = Indicators.SimpleMovingAverage(Bars.HighPrices,3);
+        }
+
+        protected override void OnTick()
+        {
+            if(IsFull(_arrayLow)){
+                if(_arrayLow[0] > _arrayLow[1] && _arrayLow[1] > _arrayLow[2] && _arrayHight[0] > _arrayHight[1] && _arrayHight[1] > _arrayHight[2]){ //Alcista
+                    if(Symbol.Ask < _arrayLow[0]){
+                       if (!IsBuyPositionOpen())
+                        {
+                           /* Print("Alcista");
+                            Print("Symbol.Bid: " + Symbol.Bid);
+                            Print("low_ma.Result.LastValue: " + low_ma.Result.LastValue);*/
+                            ExecuteOrder(InitialQuantity, TradeType.Buy);
+                        }
+                    }
+                }
+            }
+            
+            if(IsFull(_arrayHight)){
+                if(_arrayLow[0] < _arrayLow[1] && _arrayLow[1] < _arrayLow[2] && _arrayHight[0] < _arrayHight[1] && _arrayHight[1] < _arrayHight[2]){ //Bajista
+
+                    if(Symbol.Bid > _arrayHight[0]){
+                        if (!IsSellPositionOpen())
+                        {
+                            /*Print("Bajista");
+                            Print("Symbol.Ask: " + Symbol.Ask);
+                            Print("hight_ma.Result.LastValue: " + hight_ma.Result.LastValue);*/
+                            ExecuteOrder(InitialQuantity, TradeType.Sell);
+                        }
+                    }
+                }
+            }
+            
+            //Cerrado de operaciones
+            if(IsBuyPositionOpen()){
+                foreach (var position in Positions)
+                {
+                    if (position.Label == "order_buy")
+                    {
+                        if(Symbol.Bid > hight_ma.Result.LastValue)
+                        ClosePosition(position);
+                    }
+                }
+            }
+            
+            
+            if(IsSellPositionOpen()){
+                foreach (var position in Positions)
+                {
+                    if (position.Label == "order_sell")
+                    {
+                        if(Symbol.Ask < low_ma.Result.LastValue)
+                        ClosePosition(position);
+                    }
+                }
+            }
+           
+        }
+
+        protected override void OnStop()
+        {
+        }
+        
+        protected override void OnBar()
+        {
+            low_ma = Indicators.SimpleMovingAverage(Bars.LowPrices,3);
+            hight_ma = Indicators.SimpleMovingAverage(Bars.HighPrices,3);
+            MakeHistoryFrom(_arrayLow, low_ma.Result.LastValue);
+            MakeHistoryFrom(_arrayHight, hight_ma.Result.LastValue);
+        }
+        
+        public void MakeHistoryFrom(double[] _myArray, double _myValue){
+            _myArray[2] = _myArray[1];
+            _myArray[1] = _myArray[0];
+            _myArray[0] = _myValue;
+        }
+        
+        public bool IsFull(double[] _myArray){
+            bool _result = true;
+            for(int i = 0; i < _myArray.Length; i++){
+                if(_myArray[i] == 0){
+                    _result = false;
+                }
+            }
+            return _result;
+        }
+        
+        
+        private void ExecuteOrder(double quantity, TradeType tradeType)
+        {
+            var volumeInUnits = Symbol.QuantityToVolumeInUnits(quantity);
+            if(tradeType == TradeType.Sell){
+                ExecuteMarketOrder(tradeType, SymbolName, volumeInUnits, "order_sell");
+                }else{
+                ExecuteMarketOrder(tradeType, SymbolName, volumeInUnits, "order_buy");
+            }
+        }
+        
+        
+        private bool IsBuyPositionOpen()
+        {
+             return Positions.FindAll("order_buy", SymbolName, TradeType.Buy).Length > 0;
+        }
+ 
+        private bool IsSellPositionOpen()
+        {
+            return Positions.FindAll("order_sell", SymbolName, TradeType.Sell).Length > 0;
+        }
+        
+    }
+}
