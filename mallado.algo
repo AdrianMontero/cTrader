@@ -18,6 +18,9 @@ namespace cAlgo.Robots
 
         [Parameter("Mesh Distance", Group = "Mesh configuration", DefaultValue = 0.01, MinValue = 1E-05, Step = 1E-05)]
         public double meshDistance { get; set; }
+        
+        [Parameter("Filter to go long/short", Group = "Mesh configuration", DefaultValue = false)]
+        public bool useMACDLikeFilter { get; set; }
 
         [Parameter("Take Profit", Group = "Mesh configuration", DefaultValue = 200)]
         public int TakeProfit { get; set; }
@@ -27,12 +30,23 @@ namespace cAlgo.Robots
 
         [Parameter("Sell", Group = "Sell/buy", DefaultValue = false)]
         public bool botGoShort { get; set; }
+        
+        
 
         public bool okNexLong { get; set; }
         public bool okNexShort { get; set; }
+        
+        public ExponentialMovingAverage _ema12;
+        public ExponentialMovingAverage _ema26;
+        public double macd;
+        private double[] _arrayMACD = new double[3];
+        private int _periodo; // 1 = bajista, 2 = sin definir, 3 = Alcista
 
         protected override void OnStart()
         {
+            _ema12 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 12);
+            _ema26 = Indicators.ExponentialMovingAverage(Bars.ClosePrices, 26);
+            macd = _ema12.Result.LastValue - _ema26.Result.LastValue;
             if (botGoLong)
             {
                 ExecuteOrder(InitialQuantity, TradeType.Buy);
@@ -47,7 +61,20 @@ namespace cAlgo.Robots
         {
             okNexLong = true;
             okNexShort = true;
+            macd = _ema12.Result.LastValue - _ema26.Result.LastValue;
+            
+            
+            //Definicion de periodo alcista o bajista
+            if(_arrayMACD[0] > _arrayMACD[1] && _arrayMACD[1] > _arrayMACD[2]){ 
+                _periodo = 3; //Alcista
+            } else if(_arrayMACD[0] < _arrayMACD[1] && _arrayMACD[1] < _arrayMACD[2]){ 
+                _periodo = 2; // Bajista
+            } else{ 
+                _periodo = 1; // Sin definir
+            }
+            
 
+            //Gestion de cuenta y logica de mesh
             foreach (Position myPosition in Positions)
             {
                 if (myPosition.TradeType.Equals(TradeType.Buy) && myPosition.EntryPrice < (Symbol.Ask + meshDistance) && myPosition.EntryPrice > (Symbol.Ask - meshDistance))
@@ -60,14 +87,34 @@ namespace cAlgo.Robots
                 }
             }
 
-            if (okNexLong && botGoLong)
-            {
-                ExecuteOrder(InitialQuantity, TradeType.Buy);
+            //Ejecucion de operativa
+            if(useMACDLikeFilter){
+                if (okNexLong && botGoLong && _periodo == 3)
+                {
+                    ExecuteOrder(InitialQuantity, TradeType.Buy);
+                }
+                if (okNexShort && botGoShort && _periodo == 1)
+                {
+                    ExecuteOrder(InitialQuantity, TradeType.Sell);
+                }
+            } else{
+                if (okNexLong && botGoLong)
+                {
+                    ExecuteOrder(InitialQuantity, TradeType.Buy);
+                }
+                if (okNexShort && botGoShort)
+                {
+                    ExecuteOrder(InitialQuantity, TradeType.Sell);
+                }
             }
-            if (okNexShort && botGoShort)
-            {
-                ExecuteOrder(InitialQuantity, TradeType.Sell);
-            }
+        }
+        
+        
+        
+        protected override void OnBar()
+        {
+            macd = _ema12.Result.LastValue - _ema26.Result.LastValue;
+            MakeHistoryFrom(_arrayMACD, macd);    
         }
 
 
@@ -79,5 +126,24 @@ namespace cAlgo.Robots
             if (result.Error == ErrorCode.NoMoney)
                 Stop();
         }
+        
+        
+        public void MakeHistoryFrom(double[] _myArray, double _myValue){
+            _myArray[2] = _myArray[1];
+            _myArray[1] = _myArray[0];
+            _myArray[0] = _myValue;
+        }
+        
+        public bool IsFull(double[] _myArray){
+            bool _result = true;
+            for(int i = 0; i < _myArray.Length; i++){
+                if(_myArray[i] == 0){
+                    _result = false;
+                }
+            }
+            return _result;
+        }
+        
+        
     }
 }
