@@ -24,6 +24,9 @@ namespace cAlgo.Robots
 
         [Parameter("Take Profit", Group = "Mesh configuration", DefaultValue = 200)]
         public int TakeProfit { get; set; }
+        
+        [Parameter("Stop Lost", Group = "Mesh configuration", DefaultValue = 0)]
+        public int StopLost { get; set; }
 
         [Parameter("Buy", Group = "Sell/buy", DefaultValue = false)]
         public bool botGoLong { get; set; }
@@ -89,13 +92,15 @@ namespace cAlgo.Robots
 
             //Ejecucion de operativa
             if(useMACDLikeFilter){
-                if (okNexLong && botGoLong && _periodo == 3)
-                {
-                    ExecuteOrder(InitialQuantity, TradeType.Buy);
-                }
-                if (okNexShort && botGoShort && _periodo == 1)
-                {
-                    ExecuteOrder(InitialQuantity, TradeType.Sell);
+                if(IsFull(_arrayMACD)){
+                    if (okNexLong && botGoLong && _periodo == 3)
+                    {
+                        ExecuteOrder(InitialQuantity, TradeType.Buy);
+                    }
+                    if (okNexShort && botGoShort && _periodo == 1)
+                    {
+                        ExecuteOrder(InitialQuantity, TradeType.Sell);
+                    }
                 }
             } else{
                 if (okNexLong && botGoLong)
@@ -121,7 +126,7 @@ namespace cAlgo.Robots
         private void ExecuteOrder(double quantity, TradeType tradeType)
         {
             var volumeInUnits = Symbol.QuantityToVolumeInUnits(quantity);
-            var result = ExecuteMarketOrder(tradeType, SymbolName, volumeInUnits, "Mallado", 0, TakeProfit);
+            var result = ExecuteMarketOrder(tradeType, SymbolName, volumeInUnits, "Mallado", StopLost, TakeProfit);
 
             if (result.Error == ErrorCode.NoMoney)
                 Stop();
